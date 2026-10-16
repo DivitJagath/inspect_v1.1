@@ -1,0 +1,10 @@
+path: C:/Users/divit/OneDrive/Desktop/Project/component_dataset
+train: images/merged_mix
+val: images/val
+names:
+  0: A
+  1: B
+  2: C
+  3: D
+  4: E
+  5: F
