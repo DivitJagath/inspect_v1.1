@@ -38,6 +38,8 @@ def main():
                         help="Fraction of training images per epoch; use lower values for CPU laptops")
     parser.add_argument("--weights", default="yolo11n.pt",
                         help="Starting model checkpoint (local .pt file or Ultralytics model name)")
+    parser.add_argument("--name", default="af_detector_lighting_retrain",
+                        help="Name for a new training run; existing runs are not overwritten")
     parser.add_argument("--train-images", default="images/train",
                         help="Training image folder relative to dataset root")
     args = parser.parse_args()
@@ -96,15 +98,17 @@ def main():
         workers=0,
         hsv_h=0.035,
         hsv_s=0.60,
-        hsv_v=0.50,
+        # Broader value/exposure changes complement the pre-generated glare and
+        # lighting variants. Real overexposed captures are still needed for validation.
+        hsv_v=0.70,
         degrees=4.0,
         translate=0.05,
         scale=0.30,
         fliplr=0.0,
         mosaic=0.35,
         project=str(ROOT / "runs"),
-        name="af_detector",
-        exist_ok=True,
+        name=args.name,
+        exist_ok=False,
         seed=42,
     )
     best = Path(result.save_dir) / "weights" / "best.pt"

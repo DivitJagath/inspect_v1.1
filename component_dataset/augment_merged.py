@@ -89,15 +89,59 @@ def add_shadow(image: Image.Image, rng: random.Random):
     return Image.alpha_composite(image.convert("RGBA"), layer).convert("RGB")
 
 
+def add_light_artifacts(image: Image.Image, rng: random.Random):
+    """Simulate uneven exposure and soft reflected glare without changing labels.
+
+    The overlays are intentionally soft and limited so the generated target still
+    contains some shape evidence. Fully clipped/featureless objects cannot be
+    learned from pixels, so this does not pretend to synthesize that information.
+    """
+    width, height = image.size
+    layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer)
+
+    # Local camera/metal glare: a soft, broad highlight, sometimes crossing the
+    # product area but not routinely erasing an entire component.
+    if rng.random() < 0.62:
+        cx = rng.uniform(0.08, 0.92) * width
+        cy = rng.uniform(0.10, 0.90) * height
+        rx = rng.uniform(0.035, 0.15) * width
+        ry = rng.uniform(0.025, 0.11) * height
+        alpha = rng.randint(12, 62)
+        draw.ellipse((cx-rx, cy-ry, cx+rx, cy+ry),
+                     fill=(255, 250, 235, alpha))
+        layer = layer.filter(ImageFilter.GaussianBlur(radius=max(3, min(width, height)*0.018)))
+
+    # A mild directional cast can shift the metal from cool gray to warm white.
+    if rng.random() < 0.45:
+        tint = rng.choice(((255, 244, 224), (224, 238, 255), (255, 255, 255)))
+        tint_layer = Image.new("RGBA", image.size, (*tint, rng.randint(5, 20)))
+        layer = Image.alpha_composite(layer, tint_layer)
+    return Image.alpha_composite(image.convert("RGBA"), layer).convert("RGB")
+
+
 def transform(source: Image.Image, boxes, rng: random.Random, index: int):
     image = source.copy().convert("RGB")
     paint_mode = ("none", "none", "none", "light", "partial", "heavy")[index % 6]
     if paint_mode != "none":
         image = paint_overlay(image, boxes, rng, paint_mode)
     image = add_shadow(image, rng)
-    image = ImageEnhance.Brightness(image).enhance(rng.uniform(0.68, 1.34))
-    image = ImageEnhance.Contrast(image).enhance(rng.uniform(0.78, 1.28))
-    image = ImageEnhance.Color(image).enhance(rng.uniform(0.62, 1.35))
+    # Cover underexposure, ordinary exposure, and bright camera exposure. Some
+    # bright cases include local glare to mimic uneven light on reflective metal.
+    lighting = index % 5
+    if lighting == 0:
+        brightness = rng.uniform(0.48, 0.75)
+    elif lighting == 1:
+        brightness = rng.uniform(0.76, 1.12)
+    elif lighting in (2, 3):
+        brightness = rng.uniform(1.12, 1.68)
+    else:
+        brightness = rng.uniform(0.72, 1.52)
+    image = ImageEnhance.Brightness(image).enhance(brightness)
+    image = ImageEnhance.Contrast(image).enhance(rng.uniform(0.62, 1.48))
+    image = ImageEnhance.Color(image).enhance(rng.uniform(0.35, 1.55))
+    if lighting in (2, 3, 4) and rng.random() < 0.82:
+        image = add_light_artifacts(image, rng)
     if rng.random() < 0.28:
         image = ImageOps.grayscale(image).convert("RGB")
     if rng.random() < 0.22:
@@ -154,7 +198,9 @@ def main():
         "Synthetic merged-image augmentation report\n"
         f"Source: {image_path}\nCount: {len(generated)}\nSeed: {args.seed}\n"
         "All generated images are training-only. Do not copy these into validation.\n"
-        "Paint is a visual simulation constrained to A/E boxes; it does not replace real painted captures.\n\n"
+        "Paint is a visual simulation constrained to A/E boxes; it does not replace real painted captures.\n"
+        "Lighting variants include dark/bright exposure, contrast/color changes, and soft local glare.\n"
+        "They are synthetic and do not establish accuracy on real glare or fully clipped white pixels.\n\n"
         + "\n".join(f"{name}: {mode} paint" for name, mode in generated) + "\n",
         encoding="utf-8",
     )
