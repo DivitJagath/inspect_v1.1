@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h2>Detection History</h2>
+  <table>
+    <thead><tr><th>Time (UTC)</th><th>Result</th><th>Stable</th><th>Counts</th><th>Expected</th><th>Note</th></tr></thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.ts }}</td>
+        <td>{{ row.result }}</td>
+        <td>{{ row.stable }}</td>
+        <td>{{ row.counts }}</td>
+        <td>{{ row.expected }}</td>
+        <td>{{ row.note }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}
