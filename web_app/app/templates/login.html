@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login - Inspect Web App</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <main class="card login">
+    <h2>Login</h2>
+    <p class="muted">Default user: <code>admin</code> / <code>admin123</code> (change in production)</p>
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    <form method="post" action="/login">
+      <label>Username <input name="username" required /></label>
+      <label>Password <input type="password" name="password" required /></label>
+      <button type="submit">Sign in</button>
+    </form>
+  </main>
+</body>
+</html>

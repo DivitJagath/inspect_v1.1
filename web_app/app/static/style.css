@@ -1,0 +1,17 @@
+body { font-family: Arial, sans-serif; margin: 0; background: #12151b; color: #f5f6f8; }
+header { background: #1d2330; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; }
+nav a, nav button { margin-right: 10px; color: #9ed2ff; text-decoration: none; background: none; border: none; cursor: pointer; font-size: 14px; }
+main { padding: 20px; }
+.card { background: #1b2230; border: 1px solid #2f3a52; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+.login { max-width: 360px; margin: 80px auto; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.frame { width: 100%; border: 1px solid #3d4f72; border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { border-bottom: 1px solid #2f3a52; padding: 8px; text-align: left; font-size: 14px; }
+input, select, button { padding: 8px; border-radius: 6px; border: 1px solid #334; background: #0f1420; color: #fff; }
+label { display: block; margin-bottom: 10px; }
+button { background: #215ea8; border-color: #2d74cb; }
+.error { color: #ff8f8f; }
+.muted { color: #9ca7bf; font-size: 13px; }
+.inline { display: inline; }
+.settings-form .bom-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }

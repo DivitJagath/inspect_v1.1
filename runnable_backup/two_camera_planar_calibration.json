@@ -1,0 +1,107 @@
+{
+  "calibration_type": "two-camera planar homography",
+  "reference_rectangle_mm": {
+    "width": 69.0,
+    "height": 89.0
+  },
+  "cameras": {
+    "camera1": {
+      "source_points_file": "camera1_points_pixels.json",
+      "homography_pixel_to_table_mm": [
+        [
+          0.3128611594267315,
+          -0.00601656075820653,
+          -462.15008152010626
+        ],
+        [
+          -7.030725894966978e-17,
+          0.49667145041657274,
+          -331.2798574278539
+        ],
+        [
+          -0.00018738883896298578,
+          -0.00018162870354361768,
+          1.0
+        ]
+      ],
+      "image_points_pixels": {
+        "Top-left": {
+          "x": 1490.0,
+          "y": 667.0
+        },
+        "Top-right": {
+          "x": 1617.0,
+          "y": 667.0
+        },
+        "Bottom-right": {
+          "x": 1615.0,
+          "y": 767.0
+        },
+        "Bottom-left": {
+          "x": 1492.0,
+          "y": 771.0
+        }
+      },
+      "reference_edge_lengths_pixels": {
+        "top": 127.0,
+        "right": 100.02,
+        "bottom": 123.065,
+        "left": 104.019
+      },
+      "important_limitations": [
+        "Only valid on the flat plane containing the calibration rectangle.",
+        "Future pixel coordinates must use the same source-frame resolution and coordinate system.",
+        "Does not calculate 3D lens-to-component distance."
+      ]
+    },
+    "camera2": {
+      "source_points_file": "camera2_points_pixels.json",
+      "homography_pixel_to_table_mm": [
+        [
+          0.4369796874208453,
+          -0.03718976063156134,
+          -34.605072267667765
+        ],
+        [
+          0.03344197588991544,
+          0.6353975419083926,
+          -473.67214650476177
+        ],
+        [
+          9.618417559261967e-05,
+          -0.0004090475637107449,
+          1.0
+        ]
+      ],
+      "image_points_pixels": {
+        "Top-left": {
+          "x": 142.0,
+          "y": 738.0
+        },
+        "Top-right": {
+          "x": 256.0,
+          "y": 732.0
+        },
+        "Bottom-right": {
+          "x": 258.0,
+          "y": 828.0
+        },
+        "Bottom-left": {
+          "x": 150.0,
+          "y": 832.0
+        }
+      },
+      "reference_edge_lengths_pixels": {
+        "top": 114.158,
+        "right": 96.021,
+        "bottom": 108.074,
+        "left": 94.34
+      },
+      "important_limitations": [
+        "Only valid on the flat plane containing the calibration rectangle.",
+        "Future pixel coordinates must use the same source-frame resolution and coordinate system.",
+        "Does not calculate 3D lens-to-component distance."
+      ]
+    }
+  }
+}

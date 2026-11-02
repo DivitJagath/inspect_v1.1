@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid">
+  <section class="card">
+    <h2>Live Status</h2>
+    <p><strong>Status:</strong> <span id="status">{{ snapshot.status }}</span></p>
+    <p><strong>Result:</strong> <span id="result">{{ snapshot.result }}</span></p>
+    <p><strong>Stable:</strong> <span id="stable">{{ snapshot.stable }}</span></p>
+    <p><strong>Updated:</strong> <span id="updated">{{ snapshot.updated_at }}</span></p>
+    <button id="captureBtn">Capture Frame</button>
+    <p id="captureMsg" class="muted"></p>
+  </section>
+  <section class="card">
+    <h2>Live Merged Frame</h2>
+    <img id="liveFrame" src="/api/frame.jpg" alt="live frame" class="frame" />
+  </section>
+</div>
+<section class="card">
+  <h2>Counts</h2>
+  <table>
+    <thead><tr><th>Component</th><th>Detected</th><th>Expected</th></tr></thead>
+    <tbody id="countsBody">
+      {% for key in ["A","B","C","D","E","F"] %}
+      <tr><td>{{ key }}</td><td id="det_{{ key }}">{{ snapshot.counts[key] }}</td><td id="exp_{{ key }}">{{ snapshot.expected[key] }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+<script>
+const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/status');
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  document.getElementById('status').textContent = data.status;
+  document.getElementById('result').textContent = data.result;
+  document.getElementById('stable').textContent = data.stable;
+  document.getElementById('updated').textContent = data.updated_at;
+  ['A','B','C','D','E','F'].forEach(k => {
+    document.getElementById('det_' + k).textContent = data.counts[k] ?? 0;
+    document.getElementById('exp_' + k).textContent = data.expected[k] ?? 0;
+  });
+  document.getElementById('liveFrame').src = '/api/frame.jpg?t=' + Date.now();
+};
+document.getElementById('captureBtn').addEventListener('click', async () => {
+  const res = await fetch('/api/capture', {method: 'POST'});
+  const data = await res.json();
+  document.getElementById('captureMsg').textContent = data.saved ? ('Saved: ' + data.saved) : 'Capture failed';
+});
+</script>
+{% endblock %}

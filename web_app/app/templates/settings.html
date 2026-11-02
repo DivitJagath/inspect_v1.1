@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h2>Basic Settings</h2>
+  <form method="post" action="/settings" class="settings-form">
+    <label>Pipeline Mode
+      <select name="pipeline_mode">
+        <option value="demo" {% if pipeline_mode == 'demo' %}selected{% endif %}>demo</option>
+      </select>
+    </label>
+    <h3>Expected BOM</h3>
+    <div class="bom-grid">
+      {% for key in ["A","B","C","D","E","F"] %}
+      <label>{{ key }} <input type="number" min="0" name="{{ key }}" value="{{ expected[key] }}" /></label>
+      {% endfor %}
+    </div>
+    <button type="submit">Save Settings</button>
+  </form>
+</section>
+{% endblock %}
