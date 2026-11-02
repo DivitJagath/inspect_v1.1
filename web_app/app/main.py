@@ -62,7 +62,7 @@ async def root(request: Request):
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request, "error": ""})
+    return templates.TemplateResponse(request, "login.html", {"request": request, "error": ""})
 
 
 @app.post("/login", response_class=HTMLResponse)
@@ -70,6 +70,7 @@ async def login_submit(request: Request, username: str = Form(...), password: st
     user = get_user(username)
     if not user or not verify_password(password, user["password_hash"]):
         return templates.TemplateResponse(
+            request,
             "login.html",
             {"request": request, "error": "Invalid username or password"},
             status_code=401,
@@ -94,6 +95,7 @@ async def dashboard(request: Request):
         return RedirectResponse(url="/login", status_code=302)
     snapshot = await pipeline.snapshot()
     return templates.TemplateResponse(
+        request,
         "dashboard.html",
         {"request": request, "username": username, "snapshot": snapshot},
     )
@@ -106,6 +108,7 @@ async def history_page(request: Request):
         return RedirectResponse(url="/login", status_code=302)
     rows = list_detection_events(limit=200)
     return templates.TemplateResponse(
+        request,
         "history.html", {"request": request, "username": username, "rows": rows}
     )
 
@@ -118,6 +121,7 @@ async def settings_page(request: Request):
     expected = get_setting_json("expected_bom", {"A": 5, "B": 0, "C": 0, "D": 0, "E": 2, "F": 10})
     pipeline_mode = get_setting_json("pipeline_mode", "demo")
     return templates.TemplateResponse(
+        request,
         "settings.html",
         {"request": request, "username": username, "expected": expected, "pipeline_mode": pipeline_mode},
     )
