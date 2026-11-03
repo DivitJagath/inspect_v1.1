@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="csrf-token" content="{{ csrf_token }}" />
+  <title>{% block title %}Jetson Inspection{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/dashboard"><span class="brand-mark">G</span><span>Godrej <small>VISION INSPECTION</small></span></a>
+    {% if username %}
+    <nav>
+      <a href="/dashboard">Live view</a>
+      <a href="/history">History</a>
+      <a href="/settings">System</a>
+      <form method="post" action="/logout" class="inline">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}" />
+        <button class="nav-button" type="submit">Sign out</button>
+      </form>
+    </nav>
+    {% endif %}
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+</body>
+</html>

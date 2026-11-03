@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Live inspection · Godrej{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <div><p class="eyebrow">JETSON EDGE SYSTEM</p><h1>Live inspection</h1><p class="muted">Detection is processed on the Jetson. This page displays its current output.</p></div>
+  <div class="result-pill result-{{ snapshot.result|lower|replace(' ', '-') }}" id="result">{{ snapshot.result }}</div>
+</section>
+<section class="status-strip card">
+  <div><span class="status-dot" id="systemDot"></span><strong id="status">{{ snapshot.status }}</strong><small id="updated">{{ snapshot.updated_at or 'Waiting for first update' }}</small></div>
+  <div class="status-meta"><span>Detection <strong id="stable">{{ 'Stable' if snapshot.stable else 'Checking' }}</strong></span><span>Model <strong id="modelStatus">{{ snapshot.model_status or 'Loading / unavailable' }}</strong></span></div>
+</section>
+<section class="camera-grid">
+  {% for camera, label in [('cam1','Camera 1'),('cam2','Camera 2'),('merged','Merged detector view')] %}
+  <article class="card camera-card {% if camera == 'merged' %}merged-card{% endif %}">
+    <div class="card-heading"><div><h2>{{ label }}</h2><p class="muted" id="{{ camera }}Status">{% if camera in ['cam1','cam2'] %}Waiting for camera{% else %}Waiting for alignment{% endif %}</p></div><span class="camera-indicator" id="{{ camera }}Dot"></span></div>
+    {% if snapshot.frame_available[camera] %}
+    <img id="frame-{{ camera }}" class="camera-frame" src="/api/frame.jpg?camera={{ camera }}" alt="{{ label }}" />
+    {% else %}
+    <img id="frame-{{ camera }}" class="camera-frame" alt="{{ label }}" hidden />
+    {% endif %}
+    <div class="frame-empty" id="empty-{{ camera }}" {% if snapshot.frame_available[camera] %}hidden{% endif %}>No current image</div>
+  </article>
+  {% endfor %}
+</section>
+<section class="lower-grid">
+  <article class="card">
+    <div class="card-heading"><div><p class="eyebrow">PART COUNTS</p><h2>Detected vs expected</h2></div><span class="muted" id="stabilityLabel">{{ 'Stable across recent frames' if snapshot.stable else 'Waiting for stable counts' }}</span></div>
+    <div class="table-wrap"><table><thead><tr><th>Component</th><th>Detected</th><th>Expected</th><th>Check</th></tr></thead>
+      <tbody id="countsBody">{% for key in ['A','B','C','D','E','F'] %}<tr><td><span class="class-chip">{{ key }}</span></td><td id="det_{{ key }}">{{ snapshot.counts[key] }}</td><td id="exp_{{ key }}">{{ snapshot.expected[key] }}</td><td id="check_{{ key }}" class="muted">—</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </article>
+  <article class="card detections-card"><div class="card-heading"><div><p class="eyebrow">CURRENT FRAME</p><h2>Detections</h2></div><span class="muted" id="detectionTotal">{{ snapshot.detections|length }} objects</span></div>
+    <div class="detection-list" id="detectionList">{% for item in snapshot.detections %}<div class="detection-row"><span class="class-chip">{{ item.class }}</span><span>{{ '%.0f'|format(item.confidence * 100) }}% confidence</span></div>{% else %}<p class="muted">No current detections.</p>{% endfor %}</div>
+  </article>
+</section>
+<section class="card capture-card"><div><h2>Save current merged frame</h2><p class="muted">Saves the unannotated detector input to the dataset inbox for later review.</p></div><div><button class="primary-button" id="captureBtn">Save frame</button><span id="captureMsg" class="muted"></span></div></section>
+<script>
+const csrf = document.querySelector('meta[name="csrf-token"]').content;
+let frameAvailability = {cam1: false, cam2: false, merged: false};
+function setFrame(camera, available) {
+  const img = document.getElementById('frame-' + camera);
+  const empty = document.getElementById('empty-' + camera);
+  if (available) {
+    img.src = '/api/frame.jpg?camera=' + camera + '&t=' + Date.now();
+    img.hidden = false;
+    empty.hidden = true;
+  } else {
+    img.hidden = true;
+    empty.hidden = false;
+  }
+}
+function updateStatus(data) {
+  const result = document.getElementById('result');
+  result.textContent = data.result;
+  result.className = 'result-pill result-' + String(data.result).toLowerCase().replaceAll(' ', '-');
+  document.getElementById('status').textContent = data.status;
+  document.getElementById('updated').textContent = data.updated_at || 'Waiting for first update';
+  document.getElementById('stable').textContent = data.stable ? 'Stable' : 'Checking';
+  document.getElementById('stabilityLabel').textContent = data.stable ? 'Stable across recent frames' : 'Waiting for stable counts';
+  document.getElementById('modelStatus').textContent = data.model_status || 'Loading / unavailable';
+  document.getElementById('systemDot').classList.toggle('online', Object.values(data.cameras).every(c => c.connected));
+  for (const camera of ['cam1','cam2']) {
+    const c = data.cameras[camera];
+    document.getElementById(camera + 'Status').textContent = c.connected ? `${c.width}×${c.height} · ${c.fps} FPS · ${c.reconnects} reconnects` : (c.error || 'Reconnecting');
+    document.getElementById(camera + 'Dot').classList.toggle('online', c.connected);
+  }
+  document.getElementById('mergedStatus').textContent = data.stitch_status || 'Waiting for alignment';
+  document.getElementById('mergedDot').classList.toggle('online', Boolean(data.frame_available.merged));
+  frameAvailability = data.frame_available;
+  for (const camera of ['cam1','cam2','merged']) setFrame(camera, frameAvailability[camera]);
+  for (const key of ['A','B','C','D','E','F']) {
+    const detected = data.counts[key] ?? 0;
+    const expected = data.expected[key] ?? 0;
+    document.getElementById('det_' + key).textContent = detected;
+    document.getElementById('exp_' + key).textContent = expected;
+    const check = document.getElementById('check_' + key);
+    check.textContent = data.stable ? (detected === expected ? 'Match' : 'Mismatch') : 'Checking';
+    check.className = data.stable ? (detected === expected ? 'check-pass' : 'check-error') : 'muted';
+  }
+  document.getElementById('detectionTotal').textContent = `${data.detections.length} objects`;
+  const list = document.getElementById('detectionList');
+  list.replaceChildren();
+  if (!data.detections.length) {
+    const empty = document.createElement('p'); empty.className = 'muted'; empty.textContent = 'No current detections.'; list.append(empty);
+  } else {
+    for (const item of data.detections) {
+      const row = document.createElement('div'); row.className = 'detection-row';
+      const chip = document.createElement('span'); chip.className = 'class-chip'; chip.textContent = item.class;
+      const confidence = document.createElement('span'); confidence.textContent = `${Math.round(item.confidence * 100)}% confidence`;
+      row.append(chip, confidence); list.append(row);
+    }
+  }
+}
+function refreshFrames() {
+  for (const camera of ['cam1','cam2','merged']) {
+    if (!frameAvailability[camera]) continue;
+    const img = document.getElementById('frame-' + camera);
+    if (img.hidden) setFrame(camera, true);
+    else img.src = '/api/frame.jpg?camera=' + camera + '&t=' + Date.now();
+  }
+}
+function connectStatus() {
+  const scheme = location.protocol === 'https:' ? 'wss://' : 'ws://';
+  const socket = new WebSocket(scheme + location.host + '/ws/status');
+  socket.onmessage = event => updateStatus(JSON.parse(event.data));
+  socket.onclose = () => setTimeout(connectStatus, 1500);
+  socket.onerror = () => socket.close();
+}
+connectStatus();
+setInterval(refreshFrames, 450);
+document.getElementById('captureBtn').addEventListener('click', async () => {
+  const button = document.getElementById('captureBtn');
+  const message = document.getElementById('captureMsg');
+  button.disabled = true; message.textContent = ' Saving…';
+  try {
+    const response = await fetch('/api/capture', {method: 'POST', headers: {'X-CSRF-Token': csrf}});
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || 'Capture failed');
+    message.textContent = ' Saved ' + data.saved;
+  } catch (error) { message.textContent = ' ' + error.message; }
+  finally { button.disabled = false; }
+});
+</script>
+{% endblock %}

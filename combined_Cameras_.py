@@ -34,6 +34,17 @@ from collections import deque
 import numpy as np
 from PIL import Image, ImageTk
 
+WEB_ENABLED = os.environ.get("INSPECT_WEB_ENABLED", "1").lower() not in {
+    "0", "false", "no"
+}
+if WEB_ENABLED:
+    try:
+        from web_app.app.live_state import live_state
+    except Exception:
+        live_state = None
+else:
+    live_state = None
+
 try:
     from ultralytics import YOLO
 except Exception:
@@ -44,8 +55,12 @@ except Exception:
 # CONFIGURATION
 # ============================================================
 
-CAM1_URL = "rtsp://admin:admin@192.168.1.10:554/profile1"
-CAM2_URL = "rtsp://admin:admin@192.168.1.20:554/profile1"
+CAM1_URL = os.environ.get(
+    "BOM_CAM1_URL", "rtsp://admin:admin@192.168.1.10:554/profile1"
+)
+CAM2_URL = os.environ.get(
+    "BOM_CAM2_URL", "rtsp://admin:admin@192.168.1.20:554/profile1"
+)
 
 PANEL_WIDTH = 640
 PANEL_HEIGHT = 480
@@ -405,6 +420,7 @@ class DetectionWorker:
         self.segmentation_available = False
         self.has_prediction = False
         self.bom_stable = False
+        self.last_prediction_at = 0.0
         self.history = deque(maxlen=6)
         self.generation = 0
         self.thread = threading.Thread(target=self._run, daemon=True,
@@ -425,7 +441,8 @@ class DetectionWorker:
             # mask on every GUI refresh.
             detections = [dict(item) for item in self.detections]
             return (detections, dict(self.counts), self.status,
-                    self.has_prediction, self.bom_stable)
+                    self.has_prediction, self.bom_stable,
+                    self.last_prediction_at)
 
     def reset_for_camera_loss(self):
         """Discard old counts when a camera drops so stale BOM data cannot pass."""
@@ -436,6 +453,7 @@ class DetectionWorker:
             self.counts = {name: 0 for name in COMPONENTS}
             self.has_prediction = False
             self.bom_stable = False
+            self.last_prediction_at = 0.0
             self.history.clear()
             self.status = "Waiting for both camera feeds"
 
@@ -448,6 +466,7 @@ class DetectionWorker:
             self.counts = {name: 0 for name in COMPONENTS}
             self.has_prediction = False
             self.bom_stable = False
+            self.last_prediction_at = 0.0
             self.history.clear()
             self.status = "Updating detection for rotated merged view"
 
@@ -587,6 +606,7 @@ class DetectionWorker:
                     self.counts = counts
                     self.has_prediction = True
                     self.bom_stable = bom_stable
+                    self.last_prediction_at = time.monotonic()
                     mask_status = ("segmentation masks" if masks_present
                                    else "boxes only; segmentation weights required")
                     stability_status = "BOM stable" if bom_stable else "stabilizing"
@@ -1260,6 +1280,8 @@ class CombinedCameraApp:
         self._last_view_header_text = None
         self.camera_preview_sequence = {"cam1": -1, "cam2": -1}
         self.camera_preview_time = {"cam1": 0.0, "cam2": 0.0}
+        self.web_server = None
+        self.web_thread = None
 
         self.cam1 = CameraStream("CAM 1", CAM1_URL)
         self.cam2 = CameraStream("CAM 2", CAM2_URL)
@@ -2093,6 +2115,7 @@ class CombinedCameraApp:
             self.last_merged_source = None
 
         now = time.monotonic()
+        web_frames = {}
         for camera, frame, connected, fps, width, height, sequence in (
             ("cam1", frame1, connected1, fps1, w1, h1, sequence1),
             ("cam2", frame2, connected2, fps2, w2, h2, sequence2),
@@ -2105,6 +2128,7 @@ class CombinedCameraApp:
             if frame is None and self.camera_preview_sequence[camera] != -2:
                 self._show_frame(self.camera_labels[camera], None, camera)
                 self.camera_preview_sequence[camera] = -2
+                web_frames[camera] = None
             elif frame is not None and should_draw:
                 preview = cv2.resize(
                     frame, (PANEL_WIDTH, CAMERA_PREVIEW_HEIGHT),
@@ -2115,6 +2139,7 @@ class CombinedCameraApp:
                 self._show_frame(self.camera_labels[camera], preview, camera)
                 self.camera_preview_sequence[camera] = current_sequence
                 self.camera_preview_time[camera] = now
+                web_frames[camera] = preview
 
         if feeds_ready and now - self.last_stitch_submit_time >= STITCH_REFRESH_SECONDS:
             self.stitch_worker.submit(frame1, frame2, self._roi_settings_snapshot())
@@ -2135,19 +2160,27 @@ class CombinedCameraApp:
                 self.detector.submit(stitch_image)
                 self.last_detector_submit_time = now
         (detections, counts, model_status,
-         has_prediction, bom_stable) = self.detector.snapshot()
+         has_prediction, bom_stable, prediction_at) = self.detector.snapshot()
+        prediction_fresh = (
+            has_prediction and prediction_at > 0 and now - prediction_at <= 3.0
+            and not model_status.lower().startswith("inference error")
+        )
+        stable_fresh = bom_stable and prediction_fresh
         self._update_bom_table(detections, counts, model_status,
-                               has_prediction, bom_stable)
+                               prediction_fresh, stable_fresh)
+        annotated = None
         if self.last_merged is not None and render_stitch:
             annotated_source = self._annotate_detections(
                 self.last_merged_source, detections
             )
             annotated = self._rotate_merged_image(annotated_source)
+            web_frames["merged"] = annotated
             self._show_frame(self.merged_label, annotated, "merged")
             if self.merged_fullscreen_label is not None:
                 self._show_frame(self.merged_fullscreen_label, annotated,
                                  "merged_fullscreen")
         elif self.last_merged is None and render_stitch:
+            web_frames["merged"] = None
             self.merged_label.configure(image="", text=stitch_status, fg="white")
             if self.merged_fullscreen_label is not None:
                 self.merged_fullscreen_label.configure(image="", text=stitch_status,
@@ -2169,6 +2202,31 @@ class CombinedCameraApp:
             self.view_header_var.set(header_text)
             self._last_view_header_text = header_text
 
+        if WEB_ENABLED and live_state is not None:
+            live_state.publish(
+                cameras={
+                    "cam1": {"connected": connected1, "width": w1, "height": h1,
+                             "fps": fps1, "reconnects": reconnects1,
+                             "error": camera_error1},
+                    "cam2": {"connected": connected2, "width": w2, "height": h2,
+                             "fps": fps2, "reconnects": reconnects2,
+                             "error": camera_error2},
+                },
+                counts=counts,
+                expected=EXPECTED_BOM,
+                stable=stable_fresh,
+                has_prediction=prediction_fresh,
+                model_status=model_status,
+                stitch_status=stitch_status,
+                detections=detections,
+                frames=web_frames,
+                capture_frame=(self.last_merged_source
+                               if feeds_ready and stitch_image is not None
+                               and self.last_merged_source is not None
+                               else False),
+                merged_available=stitch_image is not None,
+            )
+
     # --------------------------------------------------------
     # SHUTDOWN
     # --------------------------------------------------------
@@ -2182,6 +2240,12 @@ class CombinedCameraApp:
         self.cam2.stop()
         self.stitch_worker.close()
         self.detector.close()
+        if self.web_server is not None:
+            self.web_server.should_exit = True
+        if self.web_thread is not None and self.web_thread.is_alive():
+            self.web_thread.join(timeout=3.0)
+        if live_state is not None:
+            live_state.mark_stopped()
         if self.merged_toplevel is not None:
             self.merged_toplevel.destroy()
         self.root.destroy()
@@ -2194,6 +2258,34 @@ class CombinedCameraApp:
 def main():
     root = tk.Tk()
     app = CombinedCameraApp(root)
+    if WEB_ENABLED:
+        try:
+            if len(os.environ.get("INSPECT_WEB_SESSION_SECRET", "")) < 32:
+                raise RuntimeError(
+                    "set INSPECT_WEB_SESSION_SECRET to at least 32 random characters"
+                )
+            if len(os.environ.get("INSPECT_WEB_DEFAULT_PASSWORD", "")) < 12:
+                raise RuntimeError(
+                    "set INSPECT_WEB_DEFAULT_PASSWORD to at least 12 characters"
+                )
+            import uvicorn
+            from web_app.app.main import app as web_app
+
+            host = os.environ.get("INSPECT_WEB_HOST", "0.0.0.0")
+            port = int(os.environ.get("INSPECT_WEB_PORT", "8000"))
+            config = uvicorn.Config(
+                web_app, host=host, port=port, log_level="warning", access_log=False
+            )
+            app.web_server = uvicorn.Server(config)
+            # Uvicorn is hosted on a worker thread; Tk owns the main thread.
+            app.web_server.install_signal_handlers = lambda: None
+            app.web_thread = threading.Thread(
+                target=app.web_server.run, daemon=True, name="inspection-web-server"
+            )
+            app.web_thread.start()
+            print(f"Inspection web dashboard starting at http://{host}:{port}", flush=True)
+        except Exception as exc:
+            print(f"[web dashboard unavailable] {type(exc).__name__}: {exc}", flush=True)
     root.mainloop()
 
 

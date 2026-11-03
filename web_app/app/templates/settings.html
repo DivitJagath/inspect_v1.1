@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}System status · Godrej{% endblock %}
+{% block content %}
+<section class="page-heading"><div><p class="eyebrow">SYSTEM</p><h1>Detector status</h1><p class="muted">Read-only configuration from the running Jetson inspection app.</p></div></section>
+<section class="lower-grid">
+  <article class="card"><p class="eyebrow">MODEL</p><h2>{{ snapshot.model_status or 'Waiting for model' }}</h2><p>{{ snapshot.stitch_status or 'Alignment not available' }}</p><p class="muted">Last update: {{ snapshot.updated_at or 'No update yet' }}</p></article>
+  <article class="card"><p class="eyebrow">EXPECTED BOM</p><h2>Current product quantities</h2><div class="bom-summary">{% for key in ['A','B','C','D','E','F'] %}<div><span class="class-chip">{{ key }}</span><strong>{{ snapshot.expected[key] }}</strong></div>{% endfor %}</div></article>
+</section>
+<section class="card"><p class="eyebrow">PROCESSING LOCATION</p><h2>Jetson edge device</h2><p class="muted">Camera acquisition, image stitching, model inference, and BOM comparison remain in the existing detector process. The browser displays its published state.</p></section>
+{% endblock %}

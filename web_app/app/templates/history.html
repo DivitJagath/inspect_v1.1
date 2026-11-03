@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Capture history · Godrej{% endblock %}
+{% block content %}
+<section class="page-heading"><div><p class="eyebrow">REVIEW</p><h1>Capture history</h1><p class="muted">Frames saved from the live merged detector view.</p></div></section>
+<section class="card table-wrap"><table><thead><tr><th>Time (UTC)</th><th>Result</th><th>Stable</th><th>Counts</th><th>Expected</th><th>Note</th></tr></thead>
+<tbody>{% for row in rows %}<tr><td>{{ row.ts }}</td><td><span class="result-pill result-{{ row.result|lower }}">{{ row.result }}</span></td><td>{{ 'Yes' if row.stable else 'No' }}</td><td>{{ row.counts }}</td><td>{{ row.expected }}</td><td>{{ row.note }}</td></tr>{% else %}<tr><td colspan="6" class="muted">No frames have been saved yet.</td></tr>{% endfor %}</tbody></table></section>
+{% endblock %}
